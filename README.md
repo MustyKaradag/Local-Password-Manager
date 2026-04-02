@@ -65,25 +65,3 @@ To prevent cluttering the directory where the .exe is located, the SQLite databa
 
 ⚠️ Security Disclaimer
 This is a local, open-source project designed for ease of use and local control. While the password generation uses cryptographically secure methods, the underlying SQLite database is currently stored as plain text on your local machine. Ensure your Windows user account is secure, and avoid putting the database on shared computers.
-
-
-```### Step 2: Upload to GitHub
-
-If you already have a GitHub account and Git installed, you can publish your project by following these steps in your command prompt (make sure you are inside your project folder):
-```
-
-1. Initialize the repository:
-   ```bash
-   git init
-
-2. Add your Python file and your new README file:
-
-```Bash
-git add manager.py README.md
-```
-
-3. Commit your files:
-
-```Bash
-git commit -m "Initial commit: Added password manager script and README"
-```
