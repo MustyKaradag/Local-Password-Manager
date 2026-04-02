@@ -32,37 +32,44 @@ If you want to run the raw Python script or compile it yourself, you will need P
 
 Navigate to the directory:
 
-Bash
+```bash
 cd local-password-manager
+```
+
 Run the app:
 
-Bash
+```bash
 python manager.py
+```
+
 📦 Compiling to a Portable .exe (Windows)
 You can turn this script into a standalone .exe file that runs on Windows machines without needing Python installed.
 
 Install PyInstaller:
 
-Bash
+```Bash
 pip install pyinstaller
 Compile the application (hides the console window and bundles everything into one file):
+```
 
-Bash
+```Bash
 pyinstaller --onefile --windowed manager.py
 Find your standalone app inside the newly created dist folder!
+```
 
 📂 Where is my data stored?
 To prevent cluttering the directory where the .exe is located, the SQLite database (passwords.db) is automatically generated and stored in your hidden AppData folder:
 
-Windows Path: C:\Users\<YourUsername>\AppData\Roaming\LocalPasswordManager\passwords.db
+```Windows Path: C:\Users\<YourUsername>\AppData\Roaming\LocalPasswordManager\passwords.db```
 
 ⚠️ Security Disclaimer
 This is a local, open-source project designed for ease of use and local control. While the password generation uses cryptographically secure methods, the underlying SQLite database is currently stored as plain text on your local machine. Ensure your Windows user account is secure, and avoid putting the database on shared computers.
 
 
-### Step 2: Upload to GitHub
+```### Step 2: Upload to GitHub
 
 If you already have a GitHub account and Git installed, you can publish your project by following these steps in your command prompt (make sure you are inside your project folder):
+```
 
 1. Initialize the repository:
    ```bash
