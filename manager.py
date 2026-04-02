@@ -1,9 +1,14 @@
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import ttk, messagebox, simpledialog
 import secrets
 import string
 import sqlite3
 import os
+import sys
+import base64
+from cryptography.fernet import Fernet, InvalidToken
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+from cryptography.hazmat.primitives import hashes
 
 # --- Path Setup ---
 appdata_path = os.getenv('APPDATA') 
@@ -13,6 +18,70 @@ if not os.path.exists(app_folder):
     os.makedirs(app_folder)
 
 DB_PATH = os.path.join(app_folder, 'passwords.db')
+SALT_PATH = os.path.join(app_folder, 'salt.key')
+VERIFY_PATH = os.path.join(app_folder, 'verify.key')
+
+cipher_suite = None
+
+# --- Security Functions ---
+def derive_key(password, salt):
+    """Derives a secure 32-byte key from the master password."""
+    kdf = PBKDF2HMAC(
+        algorithm=hashes.SHA256(),
+        length=32,
+        salt=salt,
+        iterations=100000,
+    )
+    return base64.urlsafe_b64encode(kdf.derive(password.encode()))
+
+def authenticate():
+    """Handles the Master Password setup and login."""
+    global cipher_suite
+    
+    # First time setup
+    if not os.path.exists(SALT_PATH) or not os.path.exists(VERIFY_PATH):
+        messagebox.showinfo("Welcome", "Let's secure your vault. Create a Master Password.\n\nKEEP THIS SAFE. If you lose it, your passwords are gone forever!")
+        pwd = simpledialog.askstring("Setup", "Create Master Password:", show='*')
+        if not pwd:
+            return False
+            
+        salt = os.urandom(16)
+        with open(SALT_PATH, 'wb') as f:
+            f.write(salt)
+            
+        key = derive_key(pwd, salt)
+        f_cipher = Fernet(key)
+        
+        # Save a verification token to test the password later
+        token = f_cipher.encrypt(b"valid_password")
+        with open(VERIFY_PATH, 'wb') as f:
+            f.write(token)
+            
+        cipher_suite = f_cipher
+        return True
+        
+    # Standard Login
+    else:
+        with open(SALT_PATH, 'rb') as f:
+            salt = f.read()
+        with open(VERIFY_PATH, 'rb') as f:
+            verify_token = f.read()
+            
+        while True:
+            pwd = simpledialog.askstring("Login", "Enter Master Password:", show='*')
+            if pwd is None: # User clicked Cancel
+                return False
+                
+            key = derive_key(pwd, salt)
+            f_cipher = Fernet(key)
+            
+            try:
+                # If this decrypts successfully, the password is correct
+                if f_cipher.decrypt(verify_token) == b"valid_password":
+                    cipher_suite = f_cipher
+                    return True
+            except InvalidToken:
+                messagebox.showerror("Error", "Incorrect Master Password!")
 
 # --- Database Setup ---
 def init_db():
@@ -29,10 +98,9 @@ def init_db():
     conn.commit()
     conn.close()
 
-# --- Functions ---
+# --- Core App Functions ---
 def generate_password():
     length = length_var.get()
-    
     char_pool = ""
     if upper_var.get(): char_pool += string.ascii_uppercase
     if lower_var.get(): char_pool += string.ascii_lowercase
@@ -44,7 +112,6 @@ def generate_password():
         return
 
     password = ''.join(secrets.choice(char_pool) for _ in range(length))
-    
     password_display.config(state="normal")
     password_display.delete(0, tk.END)
     password_display.insert(0, password)
@@ -56,40 +123,39 @@ def save_password():
     password = password_display.get()
 
     if not website or not username or not password:
-        messagebox.showwarning("Warning", "Please fill in the Website, Username, and generate a Password!")
+        messagebox.showwarning("Warning", "Please fill in all fields!")
         return
+
+    # ENCRYPT THE PASSWORD BEFORE SAVING
+    encrypted_password = cipher_suite.encrypt(password.encode()).decode()
 
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute("INSERT INTO credentials (website, username, password) VALUES (?, ?, ?)", 
-                   (website, username, password))
+                   (website, username, encrypted_password))
     conn.commit()
     conn.close()
 
-    messagebox.showinfo("Success", f"Password for {website} saved successfully!")
+    messagebox.showinfo("Success", f"Password for {website} encrypted and saved!")
     
     website_entry.delete(0, tk.END)
     username_entry.delete(0, tk.END)
     password_display.config(state="normal")
     password_display.delete(0, tk.END)
     password_display.config(state="readonly")
-    
     load_passwords()
 
 def update_length_label(event):
     length_label.config(text=f"Password Length: {length_var.get()}")
 
 def load_passwords(*args):
-    # Clear the current table view
     for row in tree.get_children():
         tree.delete(row)
         
     search_query = search_var.get()
-    
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     
-    # We now fetch the 'id' as well, so we know exactly which record to edit/delete
     if search_query:
         cursor.execute("SELECT id, website, username, password FROM credentials WHERE website LIKE ? OR username LIKE ?", 
                        ('%' + search_query + '%', '%' + search_query + '%'))
@@ -97,13 +163,18 @@ def load_passwords(*args):
         cursor.execute("SELECT id, website, username, password FROM credentials")
         
     for row in cursor.fetchall():
-        tree.insert("", "end", values=row)
+        record_id, website, username, enc_password = row
+        # DECRYPT THE PASSWORD FOR DISPLAY
+        try:
+            decrypted_password = cipher_suite.decrypt(enc_password.encode()).decode()
+        except Exception:
+            decrypted_password = "ERROR: Bad Key"
+            
+        tree.insert("", "end", values=(record_id, website, username, decrypted_password))
         
     conn.close()
 
-# --- Right Click Menu Functions ---
 def popup_menu(event):
-    """Selects the row under the mouse and shows the right-click menu."""
     iid = tree.identify_row(event.y)
     if iid:
         tree.selection_set(iid)
@@ -111,13 +182,10 @@ def popup_menu(event):
 
 def delete_password():
     selected = tree.selection()
-    if not selected:
-        return
+    if not selected: return
+    record_id = tree.item(selected[0])['values'][0]
     
-    item = tree.item(selected[0])
-    record_id = item['values'][0] # Get the hidden database ID
-    
-    if messagebox.askyesno("Confirm Delete", "Are you sure you want to delete this saved password?"):
+    if messagebox.askyesno("Confirm", "Delete this saved password?"):
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
         cursor.execute("DELETE FROM credentials WHERE id=?", (record_id,))
@@ -127,13 +195,11 @@ def delete_password():
 
 def edit_password():
     selected = tree.selection()
-    if not selected:
-        return
+    if not selected: return
     
     item = tree.item(selected[0])
     record_id, website, username, password = item['values']
     
-    # Create a small popup window
     edit_win = tk.Toplevel(root)
     edit_win.title("Edit Entry")
     edit_win.geometry("300x250")
@@ -155,10 +221,13 @@ def edit_password():
     pwd_entry.pack(fill="x", pady=(0, 15))
     
     def save_changes():
+        # RE-ENCRYPT ON EDIT
+        new_enc_pwd = cipher_suite.encrypt(pwd_entry.get().encode()).decode()
+        
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
         cursor.execute("UPDATE credentials SET website=?, username=?, password=? WHERE id=?", 
-                       (web_entry.get(), usr_entry.get(), pwd_entry.get(), record_id))
+                       (web_entry.get(), usr_entry.get(), new_enc_pwd, record_id))
         conn.commit()
         conn.close()
         edit_win.destroy()
@@ -166,15 +235,21 @@ def edit_password():
         
     ttk.Button(edit_win, text="Save Changes", command=save_changes).pack(fill="x")
 
-# Initialize the database
-init_db()
-
-# --- UI Setup ---
+# --- UI Setup & Startup Flow ---
 root = tk.Tk()
-root.title("Local Password Manager")
+root.withdraw() # Hide the main window until logged in
+
+# Force authentication before showing the app
+if not authenticate():
+    sys.exit() # Close entirely if they press cancel
+
+root.deiconify() # Show main window after successful login
+root.title("Secure Password Vault")
 root.geometry("600x450")
 
-# Setup Tabs
+init_db()
+
+# Tabs
 notebook = ttk.Notebook(root)
 notebook.pack(fill="both", expand=True, padx=10, pady=10)
 
@@ -184,16 +259,10 @@ tab_vault = ttk.Frame(notebook)
 notebook.add(tab_generator, text="Generator & Save")
 notebook.add(tab_vault, text="Saved Passwords")
 
-# ==========================================
-# TAB 1: GENERATOR & SAVE
-# ==========================================
+# Generator Tab
 tab_generator.configure(padding=20)
-
 length_var = tk.IntVar(value=16)
-upper_var = tk.BooleanVar(value=True)
-lower_var = tk.BooleanVar(value=True)
-num_var = tk.BooleanVar(value=True)
-sym_var = tk.BooleanVar(value=True)
+upper_var, lower_var, num_var, sym_var = tk.BooleanVar(value=True), tk.BooleanVar(value=True), tk.BooleanVar(value=True), tk.BooleanVar(value=True)
 
 ttk.Label(tab_generator, text="Website / App:", font=("Arial", 10, "bold")).grid(row=0, column=0, sticky="w", pady=(0, 5))
 website_entry = ttk.Entry(tab_generator, width=30)
@@ -207,7 +276,6 @@ ttk.Separator(tab_generator, orient='horizontal').grid(row=2, column=0, columnsp
 
 length_label = ttk.Label(tab_generator, text=f"Password Length: {length_var.get()}", font=("Arial", 10, "bold"))
 length_label.grid(row=3, column=0, sticky="w", pady=(0, 10))
-
 length_slider = ttk.Scale(tab_generator, from_=8, to_=64, orient="horizontal", variable=length_var, command=update_length_label)
 length_slider.grid(row=3, column=1, columnspan=4, sticky="ew", pady=(0, 10))
 
@@ -219,55 +287,38 @@ ttk.Checkbutton(tab_generator, text="Symbols", variable=sym_var).grid(row=4, col
 
 generate_btn = ttk.Button(tab_generator, text="Generate Password", command=generate_password)
 generate_btn.grid(row=5, column=0, columnspan=5, pady=(15, 5))
-
 password_display = ttk.Entry(tab_generator, font=("Courier", 12), justify="center", state="readonly")
 password_display.grid(row=6, column=0, columnspan=5, sticky="ew", pady=(0, 15))
-
-save_btn = ttk.Button(tab_generator, text="Save to Database", command=save_password)
+save_btn = ttk.Button(tab_generator, text="Encrypt & Save", command=save_password)
 save_btn.grid(row=7, column=0, columnspan=5, pady=5)
 
-for i in range(1, 5):
-    tab_generator.columnconfigure(i, weight=1)
+for i in range(1, 5): tab_generator.columnconfigure(i, weight=1)
 
-# ==========================================
-# TAB 2: SAVED PASSWORDS (VAULT)
-# ==========================================
+# Vault Tab
 search_frame = ttk.Frame(tab_vault)
 search_frame.pack(fill="x", padx=10, pady=10)
-
 ttk.Label(search_frame, text="Search Vault:", font=("Arial", 10, "bold")).pack(side="left")
-
 search_var = tk.StringVar()
 search_var.trace("w", load_passwords) 
 search_entry = ttk.Entry(search_frame, textvariable=search_var)
 search_entry.pack(side="left", fill="x", expand=True, padx=10)
 
-# Treeview with hidden ID column
 columns = ("ID", "Website", "Username", "Password")
 tree = ttk.Treeview(tab_vault, columns=columns, show="headings")
-
 tree.heading("ID", text="ID")
 tree.heading("Website", text="Website / App")
 tree.heading("Username", text="Username / Email")
 tree.heading("Password", text="Password")
-
-# Hide the ID column but keep it accessible for the edit/delete functions
 tree.column("ID", width=0, stretch=tk.NO)
 tree.column("Website", width=150)
 tree.column("Username", width=200)
 tree.column("Password", width=200)
-
 tree.pack(fill="both", expand=True, padx=10, pady=(0, 10))
 
-# Create the Right-Click Menu
 menu = tk.Menu(root, tearoff=0)
 menu.add_command(label="Edit Entry", command=edit_password)
 menu.add_command(label="Delete Entry", command=delete_password)
-
-# Bind the right-click button (Button-3 on Windows) to the table
 tree.bind("<Button-3>", popup_menu)
 
-# Load data into the table
 load_passwords()
-
 root.mainloop()
