@@ -1,11 +1,12 @@
 import tkinter as tk
-from tkinter import ttk, messagebox, simpledialog
+from tkinter import ttk, messagebox, simpledialog, filedialog
 import secrets
 import string
 import sqlite3
 import os
 import sys
 import base64
+import json
 from cryptography.fernet import Fernet, InvalidToken
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from cryptography.hazmat.primitives import hashes
@@ -25,7 +26,6 @@ cipher_suite = None
 
 # --- Security Functions ---
 def derive_key(password, salt):
-    """Derives a secure 32-byte key from the master password."""
     kdf = PBKDF2HMAC(
         algorithm=hashes.SHA256(),
         length=32,
@@ -35,10 +35,8 @@ def derive_key(password, salt):
     return base64.urlsafe_b64encode(kdf.derive(password.encode()))
 
 def authenticate():
-    """Handles the Master Password setup and login."""
     global cipher_suite
     
-    # First time setup
     if not os.path.exists(SALT_PATH) or not os.path.exists(VERIFY_PATH):
         messagebox.showinfo("Welcome", "Let's secure your vault. Create a Master Password.\n\nKEEP THIS SAFE. If you lose it, your passwords are gone forever!")
         pwd = simpledialog.askstring("Setup", "Create Master Password:", show='*')
@@ -52,7 +50,6 @@ def authenticate():
         key = derive_key(pwd, salt)
         f_cipher = Fernet(key)
         
-        # Save a verification token to test the password later
         token = f_cipher.encrypt(b"valid_password")
         with open(VERIFY_PATH, 'wb') as f:
             f.write(token)
@@ -60,7 +57,6 @@ def authenticate():
         cipher_suite = f_cipher
         return True
         
-    # Standard Login
     else:
         with open(SALT_PATH, 'rb') as f:
             salt = f.read()
@@ -69,14 +65,13 @@ def authenticate():
             
         while True:
             pwd = simpledialog.askstring("Login", "Enter Master Password:", show='*')
-            if pwd is None: # User clicked Cancel
+            if pwd is None: 
                 return False
                 
             key = derive_key(pwd, salt)
             f_cipher = Fernet(key)
             
             try:
-                # If this decrypts successfully, the password is correct
                 if f_cipher.decrypt(verify_token) == b"valid_password":
                     cipher_suite = f_cipher
                     return True
@@ -126,7 +121,6 @@ def save_password():
         messagebox.showwarning("Warning", "Please fill in all fields!")
         return
 
-    # ENCRYPT THE PASSWORD BEFORE SAVING
     encrypted_password = cipher_suite.encrypt(password.encode()).decode()
 
     conn = sqlite3.connect(DB_PATH)
@@ -164,7 +158,6 @@ def load_passwords(*args):
         
     for row in cursor.fetchall():
         record_id, website, username, enc_password = row
-        # DECRYPT THE PASSWORD FOR DISPLAY
         try:
             decrypted_password = cipher_suite.decrypt(enc_password.encode()).decode()
         except Exception:
@@ -221,7 +214,6 @@ def edit_password():
     pwd_entry.pack(fill="x", pady=(0, 15))
     
     def save_changes():
-        # RE-ENCRYPT ON EDIT
         new_enc_pwd = cipher_suite.encrypt(pwd_entry.get().encode()).decode()
         
         conn = sqlite3.connect(DB_PATH)
@@ -235,17 +227,141 @@ def edit_password():
         
     ttk.Button(edit_win, text="Save Changes", command=save_changes).pack(fill="x")
 
+# --- v1.2 Features: View & Copy ---
+def copy_to_clipboard(text, btn_widget):
+    root.clipboard_clear()
+    root.clipboard_append(text)
+    original_text = btn_widget.cget("text")
+    btn_widget.config(text="Copied!")
+    root.after(1500, lambda: btn_widget.config(text=original_text))
+
+def view_password_details(event):
+    selected = tree.selection()
+    if not selected: return
+    
+    item = tree.item(selected[0])
+    record_id, website, username, password = item['values']
+    
+    view_win = tk.Toplevel(root)
+    view_win.title(f"Details: {website}")
+    view_win.geometry("400x250")
+    view_win.configure(padx=20, pady=20)
+    
+    ttk.Label(view_win, text=f"Website: {website}", font=("Arial", 12, "bold")).grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 15))
+    
+    ttk.Label(view_win, text="Username:", font=("Arial", 9, "bold")).grid(row=1, column=0, sticky="w", pady=(0, 5))
+    usr_entry = ttk.Entry(view_win, width=30, state="readonly")
+    usr_entry.config(state="normal")
+    usr_entry.insert(0, username)
+    usr_entry.config(state="readonly")
+    usr_entry.grid(row=2, column=0, sticky="w", pady=(0, 15))
+    
+    btn_copy_usr = ttk.Button(view_win, text="Copy User")
+    btn_copy_usr.config(command=lambda b=btn_copy_usr: copy_to_clipboard(username, b))
+    btn_copy_usr.grid(row=2, column=1, padx=(10, 0), pady=(0, 15))
+    
+    ttk.Label(view_win, text="Password:", font=("Arial", 9, "bold")).grid(row=3, column=0, sticky="w", pady=(0, 5))
+    pwd_entry = ttk.Entry(view_win, width=30, state="readonly")
+    pwd_entry.config(state="normal")
+    pwd_entry.insert(0, password)
+    pwd_entry.config(state="readonly")
+    pwd_entry.grid(row=4, column=0, sticky="w", pady=(0, 15))
+    
+    btn_copy_pwd = ttk.Button(view_win, text="Copy Pass")
+    btn_copy_pwd.config(command=lambda b=btn_copy_pwd: copy_to_clipboard(password, b))
+    btn_copy_pwd.grid(row=4, column=1, padx=(10, 0), pady=(0, 15))
+
+# --- v1.3 Features: Export & Import ---
+def export_vault():
+    file_path = filedialog.asksaveasfilename(defaultextension=".vault", filetypes=[("Vault Backup", "*.vault")], title="Save Backup File")
+    if not file_path: return
+
+    backup_pwd = simpledialog.askstring("Backup Password", "Create a password to lock this backup file:\n(You will need this to import it later!)", show='*')
+    if not backup_pwd: return
+
+    # Fetch and decrypt current passwords into memory
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT website, username, password FROM credentials")
+    rows = cursor.fetchall()
+    conn.close()
+
+    export_data = []
+    for web, usr, enc_pwd in rows:
+        try:
+            dec_pwd = cipher_suite.decrypt(enc_pwd.encode()).decode()
+            export_data.append({"website": web, "username": usr, "password": dec_pwd})
+        except Exception:
+            continue # Skip corrupted entries
+
+    # Package as JSON and encrypt with the NEW backup password
+    json_data = json.dumps(export_data).encode()
+    salt = os.urandom(16)
+    key = derive_key(backup_pwd, salt)
+    f_cipher = Fernet(key)
+    encrypted_payload = f_cipher.encrypt(json_data)
+
+    # Save salt and payload together
+    with open(file_path, 'wb') as f:
+        f.write(salt + encrypted_payload)
+
+    messagebox.showinfo("Success", "Vault successfully backed up and heavily encrypted!")
+
+def import_vault():
+    file_path = filedialog.askopenfilename(filetypes=[("Vault Backup", "*.vault")], title="Select Backup File")
+    if not file_path: return
+
+    backup_pwd = simpledialog.askstring("Backup Password", "Enter the password for this backup file:", show='*')
+    if not backup_pwd: return
+
+    try:
+        with open(file_path, 'rb') as f:
+            data = f.read()
+
+        # Extract the salt and decrypt the payload
+        salt = data[:16]
+        encrypted_payload = data[16:]
+        key = derive_key(backup_pwd, salt)
+        f_cipher = Fernet(key)
+        decrypted_json = f_cipher.decrypt(encrypted_payload)
+        
+        import_data = json.loads(decrypted_json)
+
+        # Merge imported data into the current database
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        imported_count = 0
+        
+        for item in import_data:
+            web = item.get("website")
+            usr = item.get("username")
+            pwd = item.get("password")
+
+            if web and usr and pwd:
+                # Re-encrypt with the CURRENT session's Master Password
+                new_enc_pwd = cipher_suite.encrypt(pwd.encode()).decode()
+                cursor.execute("INSERT INTO credentials (website, username, password) VALUES (?, ?, ?)", (web, usr, new_enc_pwd))
+                imported_count += 1
+
+        conn.commit()
+        conn.close()
+        load_passwords()
+        messagebox.showinfo("Success", f"Successfully imported {imported_count} passwords into your vault!")
+
+    except Exception:
+        messagebox.showerror("Error", "Failed to import! The password was incorrect or the file is corrupted.")
+
+
 # --- UI Setup & Startup Flow ---
 root = tk.Tk()
-root.withdraw() # Hide the main window until logged in
+root.withdraw() 
 
-# Force authentication before showing the app
 if not authenticate():
-    sys.exit() # Close entirely if they press cancel
+    sys.exit() 
 
-root.deiconify() # Show main window after successful login
-root.title("Secure Password Vault")
-root.geometry("600x450")
+root.deiconify() 
+root.title("Local Password Manager v1.3") 
+root.geometry("600x480")
 
 init_db()
 
@@ -255,11 +371,17 @@ notebook.pack(fill="both", expand=True, padx=10, pady=10)
 
 tab_generator = ttk.Frame(notebook)
 tab_vault = ttk.Frame(notebook)
+tab_sync = ttk.Frame(notebook) # New Export/Import Tab
+tab_about = ttk.Frame(notebook) 
 
 notebook.add(tab_generator, text="Generator & Save")
 notebook.add(tab_vault, text="Saved Passwords")
+notebook.add(tab_sync, text="Backup & Restore") # Added to Notebook
+notebook.add(tab_about, text="About") 
 
-# Generator Tab
+# ==========================================
+# TAB 1: GENERATOR
+# ==========================================
 tab_generator.configure(padding=20)
 length_var = tk.IntVar(value=16)
 upper_var, lower_var, num_var, sym_var = tk.BooleanVar(value=True), tk.BooleanVar(value=True), tk.BooleanVar(value=True), tk.BooleanVar(value=True)
@@ -294,7 +416,9 @@ save_btn.grid(row=7, column=0, columnspan=5, pady=5)
 
 for i in range(1, 5): tab_generator.columnconfigure(i, weight=1)
 
-# Vault Tab
+# ==========================================
+# TAB 2: VAULT
+# ==========================================
 search_frame = ttk.Frame(tab_vault)
 search_frame.pack(fill="x", padx=10, pady=10)
 ttk.Label(search_frame, text="Search Vault:", font=("Arial", 10, "bold")).pack(side="left")
@@ -319,6 +443,37 @@ menu = tk.Menu(root, tearoff=0)
 menu.add_command(label="Edit Entry", command=edit_password)
 menu.add_command(label="Delete Entry", command=delete_password)
 tree.bind("<Button-3>", popup_menu)
+tree.bind("<Double-1>", view_password_details) 
 
 load_passwords()
+
+# ==========================================
+# TAB 3: BACKUP & RESTORE
+# ==========================================
+tab_sync.configure(padding=40)
+
+ttk.Label(tab_sync, text="Export Encrypted Backup", font=("Arial", 12, "bold")).pack(anchor="w", pady=(0, 5))
+ttk.Label(tab_sync, text="Save a secure .vault file to your PC or a USB drive.\nYou will set a specific password to lock this file.", font=("Arial", 10)).pack(anchor="w", pady=(0, 10))
+btn_export = ttk.Button(tab_sync, text="Export Vault...", command=export_vault)
+btn_export.pack(anchor="w", pady=(0, 30))
+
+ttk.Label(tab_sync, text="Import Backup", font=("Arial", 12, "bold")).pack(anchor="w", pady=(0, 5))
+ttk.Label(tab_sync, text="Load a .vault file. The passwords will be instantly merged\nand re-encrypted to match your current Master Password.", font=("Arial", 10)).pack(anchor="w", pady=(0, 10))
+btn_import = ttk.Button(tab_sync, text="Import Vault...", command=import_vault)
+btn_import.pack(anchor="w")
+
+# ==========================================
+# TAB 4: ABOUT
+# ==========================================
+tab_about.configure(padding=40)
+
+ttk.Label(tab_about, text="Local Password Manager", font=("Arial", 16, "bold")).pack(pady=(10, 5))
+ttk.Label(tab_about, text="Version 1.3", font=("Arial", 10)).pack(pady=(0, 20))
+
+ttk.Label(tab_about, text="A lightweight, secure, and entirely offline vault.", font=("Arial", 10)).pack(pady=(0, 10))
+ttk.Label(tab_about, text="100% Free and Open-Source.", font=("Arial", 10, "italic")).pack(pady=(0, 30))
+
+ttk.Label(tab_about, text="Created by Mustafa Karadağ", font=("Arial", 11, "bold")).pack(pady=(10, 5))
+ttk.Label(tab_about, text="Thank you for using this app!", font=("Arial", 10)).pack()
+
 root.mainloop()
