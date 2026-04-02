@@ -1,15 +1,17 @@
-# 🔐 Local Password Manager
+# 🔐 Local Password Manager v1.3
 
-A lightweight, completely offline, and portable password manager built with Python and Tkinter. This application allows users to generate secure, customizable passwords and save them to a local SQLite database that stays hidden securely on your machine.
+A lightweight, completely offline, and portable password manager built with Python and Tkinter. This application allows users to generate secure, customizable passwords and save them to a local SQLite database that stays hidden securely on your machine, protected by field-level encryption.
 
 ## ✨ Features
 
-* **Advanced Password Generator:** Create cryptographically secure passwords using custom lengths (8-64 characters) and specific character pools (Uppercase, Lowercase, Numbers, Symbols).
-* **Fully Offline & Local:** No cloud sync, no accounts, no subscriptions. Your data never leaves your computer.
+* **Advanced Password Generator:** Create cryptographically secure passwords using custom lengths (8-64 characters) and specific character pools.
+* **Field-Level Encryption:** Your passwords are mathematically scrambled using `cryptography` (Fernet) before ever touching the database. You need your Master Password to read them.
+* **Fully Offline & Local:** No cloud sync, no accounts. Your data never leaves your computer.
 * **Hidden SQLite Database:** Automatically creates and manages a `.db` file in the hidden Windows `AppData` folder to keep your desktop clean.
-* **Tabbed Interface:** Seamlessly switch between the Generator/Save tool and your Saved Passwords Vault.
-* **Real-Time Search:** Instantly filter your saved passwords by Website or Username.
-* **Context Menu Management:** Right-click any saved entry in your vault to easily Edit or Delete it.
+* **Tabbed Interface:** Seamlessly switch between the Generator, your Vault, Backup tools, and About info.
+* **Real-Time Search & Management:** Instantly filter your saved passwords. Right-click to edit/delete, or double-click to view details.
+* **Quick Copy:** Dedicated buttons to instantly copy your usernames and passwords to your clipboard.
+* **Secure Export / Import:** Backup your entire vault to an encrypted `.vault` file with a dedicated backup password, making it easy to restore or move to another PC.
 * **Standalone Executable:** Can be easily compiled into a single `.exe` file for portability.
 
 ## 🛠️ Built With
@@ -17,24 +19,28 @@ A lightweight, completely offline, and portable password manager built with Pyth
 * **Python 3**
 * **Tkinter** (Native GUI library)
 * **SQLite3** (Built-in database engine)
+* **Cryptography** (For Fernet encryption & key derivation)
 * **Secrets Module** (For cryptographically strong random numbers)
 
 ## 🚀 Getting Started
 
 ### Prerequisites
-If you want to run the raw Python script or compile it yourself, you will need Python installed on your system.
+If you want to run the raw Python script, you will need Python installed along with the required libraries.
 
-### Running the Script
 1. Clone the repository:
    ```bash
    git clone [https://github.com/MustyKaradag/local-password-manager.git](https://github.com/MustyKaradag/local-password-manager.git)
 
 
-Navigate to the directory:
+2. Navigate to the directory:
 
 ```bash
 cd local-password-manager
 ```
+3. Install the required libraries:
+   ```bash
+   pip install -r requirements.txt
+   ```
 
 Run the app:
 
@@ -50,13 +56,16 @@ Install PyInstaller:
 
 ```Bash
 pip install pyinstaller
-Compile the application (hides the console window and bundles everything into one file):
 ```
+
+Compile the application:
 
 ```Bash
 pyinstaller --onefile --windowed manager.py
-Find your standalone app inside the newly created dist folder!
 ```
+
+Find your standalone app inside the newly created dist folder!
+
 
 📂 Where is my data stored?
 To prevent cluttering the directory where the .exe is located, the SQLite database (passwords.db) is automatically generated and stored in your hidden AppData folder:
