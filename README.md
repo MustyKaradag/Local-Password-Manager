@@ -43,6 +43,7 @@ python manager.py
 ```
 
 📦 Compiling to a Portable .exe (Windows)
+
 You can turn this script into a standalone .exe file that runs on Windows machines without needing Python installed.
 
 Install PyInstaller:
@@ -74,19 +75,15 @@ If you already have a GitHub account and Git installed, you can publish your pro
 1. Initialize the repository:
    ```bash
    git init
-Add your Python file and your new README file:
 
-Bash
+2. Add your Python file and your new README file:
+
+```Bash
 git add manager.py README.md
-Commit your files:
+```
 
-Bash
+3. Commit your files:
+
+```Bash
 git commit -m "Initial commit: Added password manager script and README"
-Go to GitHub.com, click the + icon in the top right, and select New repository. Name it local-password-manager and click Create repository.
-
-Copy the commands GitHub gives you under "…or push an existing repository from the command line". It will look something like this:
-
-Bash
-git remote add origin https://github.com/YourUsername/local-password-manager.git
-git branch -M main
-git push -u origin main
+```
