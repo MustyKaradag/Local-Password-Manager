@@ -27,7 +27,7 @@ If you want to run the raw Python script or compile it yourself, you will need P
 ### Running the Script
 1. Clone the repository:
    ```bash
-   git clone [https://github.com/yourusername/local-password-manager.git](https://github.com/yourusername/local-password-manager.git)
+   git clone [https://github.com/MustyKaradag/local-password-manager.git](https://github.com/MustyKaradag/local-password-manager.git)
 
 
 Navigate to the directory:
