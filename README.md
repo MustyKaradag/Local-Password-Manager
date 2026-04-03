@@ -22,51 +22,6 @@ A lightweight, completely offline, and portable password manager built with Pyth
 * **Cryptography** (For Fernet encryption & key derivation)
 * **Secrets Module** (For cryptographically strong random numbers)
 
-## 🚀 Getting Started
-
-### Prerequisites
-If you want to run the raw Python script, you will need Python installed along with the required libraries.
-
-1. Clone the repository:
-   ```bash
-   git clone [https://github.com/MustyKaradag/local-password-manager.git](https://github.com/MustyKaradag/local-password-manager.git)
-
-
-2. Navigate to the directory:
-
-```bash
-cd local-password-manager
-```
-3. Install the required libraries:
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-Run the app:
-
-```bash
-python manager.py
-```
-
-📦 Compiling to a Portable .exe (Windows)
-
-You can turn this script into a standalone .exe file that runs on Windows machines without needing Python installed.
-
-Install PyInstaller:
-
-```Bash
-pip install pyinstaller
-```
-
-Compile the application:
-
-```Bash
-pyinstaller --onefile --windowed manager.py
-```
-
-Find your standalone app inside the newly created dist folder!
-
-
 📂 Where is my data stored?
 To prevent cluttering the directory where the .exe is located, the SQLite database (passwords.db) is automatically generated and stored in your hidden AppData folder:
 
