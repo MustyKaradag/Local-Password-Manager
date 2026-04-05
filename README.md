@@ -25,10 +25,10 @@ A lightweight, completely offline, and portable password manager built with Pyth
 📂 Where is my data stored?
 To prevent cluttering the directory where the .exe is located, the SQLite database (passwords.db) is automatically generated and stored in your hidden AppData folder:
 
-```Windows Path: C:\Users\<YourUsername>\AppData\Roaming\LocalPasswordManager\passwords.db
-
+```Windows Path: C:\Users\<YourUsername>\AppData\Roaming\LocalPasswordManager\passwords.db```
+or
+```
 %APPDATA%\LocalPasswordManager
-
 ```
 
 ⚠️ Security Disclaimer
