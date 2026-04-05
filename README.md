@@ -1,13 +1,6 @@
-# 🔐 Local Password Manager v1.5
+# 🔐 Local Password Manager v1.6
 
 A lightweight, completely offline, and portable password manager built with Python and Tkinter. This application allows users to generate secure, customizable passwords and save them to a local SQLite database that stays hidden securely on your machine, protected by field-level encryption. 
-
-## ✨ New in v1.5
-* **CSV Migration:** Instantly import and encrypt standard `.csv` exports from Google Chrome, LastPass, or other password managers.
-* **Auto-Lock Security:** The vault automatically locks and hides itself after 2 minutes of inactivity, requiring your Master Password to reopen.
-* **Clipboard Auto-Clear:** Wipes your clipboard 30 seconds after copying a password to prevent accidental pasting.
-* **Password Strength Meter:** Real-time visual feedback on the strength of your generated passwords.
-* **Multi-Language Support:** UI translations available in English, Turkish, Polish, Spanish, Italian, Portuguese, and German.
 
 ## ✨ Core Features
 * **Field-Level Encryption:** Your passwords are mathematically scrambled using `cryptography` (Fernet) before ever touching the database. You need your Master Password to read them.
@@ -16,6 +9,11 @@ A lightweight, completely offline, and portable password manager built with Pyth
 * **Quick Copy:** Dedicated buttons to instantly copy your usernames and passwords to your clipboard (requires Master Password verification for saved passwords).
 * **Secure Export / Import:** Backup your entire vault to an encrypted `.vault` file with a dedicated backup password, making it easy to restore or move to another PC.
 * **Standalone Executable:** Can be easily compiled into a single `.exe` file for portability.
+* * **CSV Migration:** Instantly import and encrypt standard `.csv` exports from Google Chrome, LastPass, or other password managers.
+* **Auto-Lock Security:** The vault automatically locks and hides itself after 2 minutes of inactivity, requiring your Master Password to reopen.
+* **Clipboard Auto-Clear:** Wipes your clipboard 30 seconds after copying a password to prevent accidental pasting.
+* **Password Strength Meter:** Real-time visual feedback on the strength of your generated passwords.
+* **Multi-Language Support:** UI translations available in English, Turkish, Polish, Spanish, Italian, Portuguese, and German.
 
 ## 🛠️ Built With
 
