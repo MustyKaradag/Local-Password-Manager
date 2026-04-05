@@ -1,4 +1,4 @@
-# 🔐 Local Password Manager v1.3
+# 🔐 Local Password Manager v1.4
 
 A lightweight, completely offline, and portable password manager built with Python and Tkinter. This application allows users to generate secure, customizable passwords and save them to a local SQLite database that stays hidden securely on your machine, protected by field-level encryption.
 
@@ -26,7 +26,9 @@ A lightweight, completely offline, and portable password manager built with Pyth
 To prevent cluttering the directory where the .exe is located, the SQLite database (passwords.db) is automatically generated and stored in your hidden AppData folder:
 
 ```Windows Path: C:\Users\<YourUsername>\AppData\Roaming\LocalPasswordManager\passwords.db```
+
 or
+to use in cmd
 ```
 %APPDATA%\LocalPasswordManager
 ```
