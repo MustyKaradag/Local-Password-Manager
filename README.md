@@ -33,5 +33,15 @@ to use in cmd
 %APPDATA%\LocalPasswordManager
 ```
 
+## 🛡️ Windows SmartScreen Warning
+
+Because this is a newly compiled, open-source application and not signed by a costly corporate certificate, **Windows Defender SmartScreen** may flag it as an "unrecognized app" the first time you run it. 
+
+**To run the app:**
+1. Click **More info** on the blue warning screen.
+2. Click the **Run anyway** button.
+
+*Note: You can verify the security of this app by reading the open-source Python code provided in this repository before downloading the `.exe`.*
+
 ⚠️ Security Disclaimer
 This is a local, open-source project designed for ease of use and local control. While the password generation uses cryptographically secure methods, the underlying SQLite database is currently stored as plain text on your local machine. Ensure your Windows user account is secure, and avoid putting the database on shared computers.
