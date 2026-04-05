@@ -208,7 +208,11 @@ def delete_password():
 def edit_password():
     selected = tree.selection()
     if not selected: return
-    
+
+    if not verify_master_password():
+        return
+        
+    item = tree.item(selected[0])
     item = tree.item(selected[0])
     record_id, website, username, _ = item['values']
     
@@ -238,7 +242,7 @@ def edit_password():
     usr_entry.pack(fill="x", pady=(0, 10))
     
     ttk.Label(edit_win, text="Password:", font=("Arial", 9, "bold")).pack(anchor="w", pady=(0, 2))
-    pwd_entry = ttk.Entry(edit_win, width=30)
+    pwd_entry = ttk.Entry(edit_win, width=30, show="*")
     pwd_entry.insert(0, real_password)
     pwd_entry.pack(fill="x", pady=(0, 15))
     
