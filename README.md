@@ -7,7 +7,7 @@ A lightweight, completely offline, and portable password manager built with Pyth
 * **Auto-Lock Security:** The vault automatically locks and hides itself after 2 minutes of inactivity, requiring your Master Password to reopen.
 * **Clipboard Auto-Clear:** Wipes your clipboard 30 seconds after copying a password to prevent accidental pasting.
 * **Password Strength Meter:** Real-time visual feedback on the strength of your generated passwords.
-* **Multi-Language Support:** UI translations available in English, Turkish, Polish, Russian, and German.
+* **Multi-Language Support:** UI translations available in English, Turkish, Polish, Spanish, Italian, Portuguese, and German.
 
 ## ✨ Core Features
 * **Field-Level Encryption:** Your passwords are mathematically scrambled using `cryptography` (Fernet) before ever touching the database. You need your Master Password to read them.
