@@ -532,11 +532,23 @@ search_var.trace("w", load_passwords)
 search_entry = ttk.Entry(search_frame, textvariable=search_var)
 search_entry.pack(side="left", fill="x", expand=True, padx=10)
 
+# Create a frame to hold both the treeview and the scrollbar
+tree_frame = ttk.Frame(tab_vault)
+tree_frame.pack(fill="both", expand=True, padx=10, pady=(0, 10))
+
+# Create the vertical scrollbar
+tree_scroll = ttk.Scrollbar(tree_frame)
+tree_scroll.pack(side="right", fill="y")
+
+# Attach the scrollbar to the Treeview
 columns = ("ID", "Website", "Username", "Password")
-tree = ttk.Treeview(tab_vault, columns=columns, show="headings")
+tree = ttk.Treeview(tree_frame, columns=columns, show="headings", yscrollcommand=tree_scroll.set)
 tree.heading("ID", text="ID"); tree.heading("Website", text="Website / App"); tree.heading("Username", text="Username / Email"); tree.heading("Password", text="Password")
 tree.column("ID", width=0, stretch=tk.NO); tree.column("Website", width=150); tree.column("Username", width=200); tree.column("Password", width=200)
-tree.pack(fill="both", expand=True, padx=10, pady=(0, 10))
+tree.pack(side="left", fill="both", expand=True)
+
+# Configure the scrollbar to control the tree's vertical view
+tree_scroll.config(command=tree.yview)
 
 menu = tk.Menu(root, tearoff=0)
 menu.add_command(label="Edit Entry", command=edit_password)
