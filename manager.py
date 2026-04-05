@@ -78,6 +78,29 @@ def authenticate():
             except InvalidToken:
                 messagebox.showerror("Error", "Incorrect Master Password!")
 
+def verify_master_password():
+    """Prompts for the Master Password to authorize an action."""
+    pwd = simpledialog.askstring("Security Check", "Enter Master Password to copy:", show='*')
+    if not pwd: 
+        return False
+        
+    with open(SALT_PATH, 'rb') as f:
+        salt = f.read()
+    with open(VERIFY_PATH, 'rb') as f:
+        verify_token = f.read()
+        
+    key = derive_key(pwd, salt)
+    f_cipher = Fernet(key)
+    
+    try:
+        if f_cipher.decrypt(verify_token) == b"valid_password":
+            return True
+    except InvalidToken:
+        pass
+        
+    messagebox.showerror("Error", "Incorrect Master Password!")
+    return False
+
 # --- Database Setup ---
 def init_db():
     conn = sqlite3.connect(DB_PATH)
@@ -151,19 +174,15 @@ def load_passwords(*args):
     cursor = conn.cursor()
     
     if search_query:
-        cursor.execute("SELECT id, website, username, password FROM credentials WHERE website LIKE ? OR username LIKE ?", 
+        cursor.execute("SELECT id, website, username FROM credentials WHERE website LIKE ? OR username LIKE ?", 
                        ('%' + search_query + '%', '%' + search_query + '%'))
     else:
-        cursor.execute("SELECT id, website, username, password FROM credentials")
+        cursor.execute("SELECT id, website, username FROM credentials")
         
     for row in cursor.fetchall():
-        record_id, website, username, enc_password = row
-        try:
-            decrypted_password = cipher_suite.decrypt(enc_password.encode()).decode()
-        except Exception:
-            decrypted_password = "ERROR: Bad Key"
-            
-        tree.insert("", "end", values=(record_id, website, username, decrypted_password))
+        record_id, website, username = row
+        # Insert masked string instead of real password into the table view
+        tree.insert("", "end", values=(record_id, website, username, "********"))
         
     conn.close()
 
@@ -191,7 +210,17 @@ def edit_password():
     if not selected: return
     
     item = tree.item(selected[0])
-    record_id, website, username, password = item['values']
+    record_id, website, username, _ = item['values']
+    
+    # Fetch real password from DB for the edit window
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT password FROM credentials WHERE id=?", (record_id,))
+    row = cursor.fetchone()
+    conn.close()
+    
+    if not row: return
+    real_password = cipher_suite.decrypt(row[0].encode()).decode()
     
     edit_win = tk.Toplevel(root)
     edit_win.title("Edit Entry")
@@ -210,12 +239,11 @@ def edit_password():
     
     ttk.Label(edit_win, text="Password:", font=("Arial", 9, "bold")).pack(anchor="w", pady=(0, 2))
     pwd_entry = ttk.Entry(edit_win, width=30)
-    pwd_entry.insert(0, password)
+    pwd_entry.insert(0, real_password)
     pwd_entry.pack(fill="x", pady=(0, 15))
     
     def save_changes():
         new_enc_pwd = cipher_suite.encrypt(pwd_entry.get().encode()).decode()
-        
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
         cursor.execute("UPDATE credentials SET website=?, username=?, password=? WHERE id=?", 
@@ -248,7 +276,17 @@ def view_password_details(event):
     if not selected: return
     
     item = tree.item(selected[0])
-    record_id, website, username, password = item['values']
+    record_id, website, username, _ = item['values']
+    
+    # Fetch real password for copying functionality
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT password FROM credentials WHERE id=?", (record_id,))
+    row = cursor.fetchone()
+    conn.close()
+    
+    if not row: return
+    real_password = cipher_suite.decrypt(row[0].encode()).decode()
     
     view_win = tk.Toplevel(root)
     view_win.title(f"Details: {website}")
@@ -268,15 +306,20 @@ def view_password_details(event):
     btn_copy_usr.config(command=lambda b=btn_copy_usr: copy_to_clipboard(username, b))
     btn_copy_usr.grid(row=2, column=1, padx=(10, 0), pady=(0, 15))
     
+    # Password field is masked in the details view as well
     ttk.Label(view_win, text="Password:", font=("Arial", 9, "bold")).grid(row=3, column=0, sticky="w", pady=(0, 5))
-    pwd_entry = ttk.Entry(view_win, width=30, state="readonly")
+    pwd_entry = ttk.Entry(view_win, width=30, state="readonly", show="*")
     pwd_entry.config(state="normal")
-    pwd_entry.insert(0, password)
+    pwd_entry.insert(0, real_password)
     pwd_entry.config(state="readonly")
     pwd_entry.grid(row=4, column=0, sticky="w", pady=(0, 15))
     
-    btn_copy_pwd = ttk.Button(view_win, text="Copy Pass")
-    btn_copy_pwd.config(command=lambda b=btn_copy_pwd: copy_to_clipboard(password, b))
+    def secure_copy():
+        if verify_master_password():
+            copy_to_clipboard(real_password, btn_copy_pwd)
+            view_win.destroy() # Closes details window after successful copy
+
+    btn_copy_pwd = ttk.Button(view_win, text="Copy Pass", command=secure_copy)
     btn_copy_pwd.grid(row=4, column=1, padx=(10, 0), pady=(0, 15))
 
 # --- Export & Import ---
@@ -411,7 +454,6 @@ ttk.Checkbutton(tab_generator, text="Symbols", variable=sym_var).grid(row=4, col
 generate_btn = ttk.Button(tab_generator, text="Generate Password", command=generate_password)
 generate_btn.grid(row=5, column=0, columnspan=5, pady=(15, 5))
 
-# --- New v1.4 Generator Field & Buttons ---
 gen_action_frame = ttk.Frame(tab_generator)
 gen_action_frame.grid(row=6, column=0, columnspan=5, sticky="ew", pady=(0, 15))
 
@@ -423,7 +465,6 @@ btn_copy_gen.pack(side="left", padx=(0, 5))
 
 btn_show_gen = ttk.Button(gen_action_frame, text="Show", command=toggle_gen_view)
 btn_show_gen.pack(side="left")
-# ------------------------------------------
 
 save_btn = ttk.Button(tab_generator, text="Encrypt & Save", command=save_password)
 save_btn.grid(row=7, column=0, columnspan=5, pady=5)
@@ -487,7 +528,7 @@ ttk.Label(tab_about, text="Version 1.4", font=("Arial", 10)).pack(pady=(0, 20))
 ttk.Label(tab_about, text="A lightweight, secure, and entirely offline vault.", font=("Arial", 10)).pack(pady=(0, 10))
 ttk.Label(tab_about, text="100% Free and Open-Source.", font=("Arial", 10, "italic")).pack(pady=(0, 30))
 
-ttk.Label(tab_about, text="Created by Mustafa", font=("Arial", 11, "bold")).pack(pady=(10, 5))
+ttk.Label(tab_about, text="Created by Mustafa Karadağ", font=("Arial", 11, "bold")).pack(pady=(10, 5))
 ttk.Label(tab_about, text="Thank you for using this app!", font=("Arial", 10)).pack()
 
 root.mainloop()
